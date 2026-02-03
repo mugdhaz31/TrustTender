@@ -30,13 +30,26 @@ function AuthForm({ type = "login", onSubmit }) {
     aadhaarNumber: "",
     aadhaarOtp: "",
     aadhaarVerified: false,
+    aadhaarToken: "",
+
   });
 
   const isEntityValid = () => {
-    if (role === "TENDER_OFFICER") return formData.organizationName.trim().length > 2;
-    if (role === "VENDOR") return formData.companyName.trim().length > 2;
+    if (role === "TENDER_OFFICER")
+      return (
+        formData.organizationName.trim().length > 2 &&
+        formData.registrationId.trim().length > 0
+      );
+
+    if (role === "VENDOR")
+      return (
+        formData.companyName.trim().length > 2 &&
+        formData.gstNumber.trim().length > 0
+      );
+
     return false;
   };
+
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -218,6 +231,9 @@ function AuthForm({ type = "login", onSubmit }) {
         emailVerified: formData.emailVerified,
         phoneVerified: formData.phoneVerified,
         aadhaarVerified: formData.aadhaarVerified,
+        aadhaarToken: formData.aadhaarToken,
+        aadhaarNumber: formData.aadhaarNumber,
+
       };
 
       if (role === "TENDER_OFFICER") {

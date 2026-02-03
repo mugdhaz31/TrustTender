@@ -6,7 +6,7 @@ const router = express.Router();
 const OTP_TTL = parseInt(process.env.AADHAAR_OTP_TTL_SECONDS || '300', 10); // seconds
 const MAX_ATTEMPTS = parseInt(process.env.AADHAAR_MAX_OTP_ATTEMPTS || '5', 10);
 
-const otpStore = new Map(); 
+const otpStore = new Map();
 // value: { otp, expiresAt: timestamp, attempts: int, aadhaarHash, aadhaarToken }
 
 function hashAadhaar(aadhaar) {
@@ -93,12 +93,12 @@ router.post("/verify-otp", (req, res) => {
       const aadhaarToken = makeAadhaarToken();
       // store token with short expiry in map (could be stored in DB or Redis)
       otpStore.set(aadhaarHash, {
-        ...record,
+        aadhaarHash,
+        attempts: record.attempts,
         aadhaarToken,
-        aadhaarTokenExpiresAt: Date.now() + 5 * 60 * 1000 // 5 minutes token
+        aadhaarTokenExpiresAt: Date.now() + 5 * 60 * 1000
       });
-      // For privacy, delete the raw OTP (no need to keep)
-      delete record.otp;
+
 
       // Return token to client (client will supply it on register)
       return res.json({ verified: true, aadhaarToken });

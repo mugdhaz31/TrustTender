@@ -24,8 +24,8 @@ const UserSchema = new mongoose.Schema({
     ref: "Company",
   },
 
-  aadhaarHash: { type: String },
-  aadhaarVerified: { type: Boolean, default: false },
+  aadhaarHash: aadhaarValidation.aadhaarHash,
+  aadhaarVerified: true,
 
   emailVerified: { type: Boolean, default: false },
   phoneVerified: { type: Boolean, default: false },

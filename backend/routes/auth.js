@@ -13,12 +13,6 @@ const axios = require("axios"); // for internal validate call if desired
 const SALT_ROUNDS = 10;
 const JWT_SECRET = process.env.JWT_SECRET || "secret";
 
-function hashAadhaar(aadhaar) {
-  const hmac = crypto.createHmac("sha256", process.env.AADHAAR_HMAC_SECRET || "demo_secret");
-  hmac.update(aadhaar);
-  return hmac.digest("hex");
-}
-
 function isValidGST(gst) {
   const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
   return gstRegex.test(gst);
@@ -66,6 +60,32 @@ router.post("/register", async (req, res) => {
       });
     }
 
+    if (!aadhaarToken || !aadhaarNumber) {
+      return res.status(400).json({
+        message: "Missing Aadhaar verification token"
+      });
+    }
+
+    let aadhaarValidation;
+
+    try {
+      const resp = await axios.post(
+        "http://localhost:5000/api/aadhaar/validate-token",
+        { aadhaarToken, aadhaarNumber }
+      );
+      aadhaarValidation = resp.data;
+    } catch (e) {
+      return res.status(400).json({
+        message: "Invalid or expired Aadhaar verification"
+      });
+    }
+
+    if (!aadhaarValidation.valid) {
+      return res.status(400).json({
+        message: "Invalid or expired Aadhaar verification"
+      });
+    }
+
     const existing = await User.findOne({ email });
     if (existing) {
       return res.status(400).json({ message: "Email already registered" });
@@ -75,74 +95,95 @@ router.post("/register", async (req, res) => {
     let companyId = null;
 
     // ---------------- TENDER OFFICER ----------------
-if (role === "TENDER_OFFICER") {
+    if (role === "TENDER_OFFICER") {
 
-  if (!organizationName) {
-    return res.status(400).json({ message: "Organization name required" });
-  }
+      const { organizationType, registrationId } = req.body;
 
-  const { organizationType, registrationId } = req.body;
+      if (!organizationName) {
+        return res.status(400).json({ message: "Organization name required" });
+      }
 
-  if (!isValidOrgRegId(registrationId)) {
-    return res.status(400).json({
-      message: "Invalid organization registration ID"
-    });
-  }
+      if (!isValidOrgRegId(registrationId)) {
+        return res.status(400).json({
+          message: "Invalid organization registration ID"
+        });
+      }
 
-  const org = await Organization.create({
-    name: organizationName,
-    organizationType: organizationType || "Government",
-    registrationId,
+      const govResp = await axios.post(
+        "http://localhost:5000/api/gov/verify-organization",
+        { registrationId, organizationType }
+      );
 
-    officialEmail: email,
-    officialPhone: phoneNumber,
+      if (!govResp.data.verified) {
+        return res.status(400).json({
+          message: "Organization could not be verified by government directory"
+        });
+      }
 
-    emailVerified: true,
-    phoneVerified: true,
+      const org = await Organization.create({
+        name: organizationName,
+        organizationType: organizationType || "Government",
+        registrationId,
 
-    // college-project authentication
-    isVerified: true
-  });
+        officialEmail: email,
+        officialPhone: phoneNumber,
 
-  organizationId = org._id;
-}
+        emailVerified: true,
+        phoneVerified: true,
+
+        isVerified: true,
+        digilockerVerified: true
+      });
+
+      organizationId = org._id;
+    }
 
     // ---------------- VENDOR ----------------
-if (role === "VENDOR") {
-  if (!companyName) {
-    return res.status(400).json({ message: "Company name required" });
-  }
+    if (role === "VENDOR") {
 
-  const { gstNumber, cinNumber, companyType } = req.body;
+      const { gstNumber, cinNumber, companyType } = req.body;
 
-  if (!gstNumber || !isValidGST(gstNumber)) {
-    return res.status(400).json({ message: "Invalid GST number format" });
-  }
+      if (!companyName) {
+        return res.status(400).json({ message: "Company name required" });
+      }
 
-  if (cinNumber && !isValidCIN(cinNumber)) {
-    return res.status(400).json({ message: "Invalid CIN number format" });
-  }
+      if (!gstNumber || !isValidGST(gstNumber)) {
+        return res.status(400).json({ message: "Invalid GST number format" });
+      }
 
-  const company = await Company.create({
-    name: companyName,
-    companyType: companyType || "Private Limited",
-    gstNumber,
-    cinNumber,
+      if (cinNumber && !isValidCIN(cinNumber)) {
+        return res.status(400).json({ message: "Invalid CIN number format" });
+      }
 
-    officialEmail: email,
-    officialPhone: phoneNumber,
+      const govResp = await axios.post(
+        "http://localhost:5000/api/gov/verify-company",
+        { gstNumber, cinNumber }
+      );
 
-    emailVerified: true,
-    phoneVerified: true,
+      if (!govResp.data.verified) {
+        return res.status(400).json({
+          message: "Company could not be verified by government service"
+        });
+      }
 
-    // college-project authentication
-    isVerified: true
-  });
+      const company = await Company.create({
+        name: companyName,
+        companyType: companyType || "Private Limited",
+        gstNumber,
+        cinNumber,
 
-  companyId = company._id;
-}
+        officialEmail: email,
+        officialPhone: phoneNumber,
 
+        emailVerified: true,
+        phoneVerified: true,
 
+        isVerified: true,
+        digilockerVerified: true
+      });
+
+      companyId = company._id;
+    }
 
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
 
@@ -154,7 +195,10 @@ if (role === "VENDOR") {
       role,
       organizationId,
       companyId,
+
+      aadhaarHash: aadhaarValidation.aadhaarHash,
       aadhaarVerified,
+
       emailVerified,
       phoneVerified,
     });
@@ -173,11 +217,13 @@ if (role === "VENDOR") {
         email: user.email,
       },
     });
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
   }
 });
+
 
 
 router.post("/login", async (req, res) => {

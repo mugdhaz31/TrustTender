@@ -8,7 +8,7 @@ const aadhaarRoutes = require("./routes/aadhaar");
 const emailRoutes = require("./routes/email");
 const digilockerRoutes = require("./routes/digilocker");
 const phoneRoutes = require("./routes/phone");
-
+const govSimulatorRoutes = require("./routes/govSimulator");
 
 const app = express();
 app.use(cors());
@@ -20,6 +20,7 @@ app.use("/api/phone", phoneRoutes);
 app.use("/api/aadhaar", aadhaarRoutes);
 app.use("/api/digilocker", digilockerRoutes);
 app.use("/api/email", emailRoutes);
+app.use("/api/gov", govSimulatorRoutes);
 
 // connect MongoDB
 mongoose
