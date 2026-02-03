@@ -19,6 +19,21 @@ function hashAadhaar(aadhaar) {
   return hmac.digest("hex");
 }
 
+function isValidGST(gst) {
+  const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+  return gstRegex.test(gst);
+}
+
+function isValidCIN(cin) {
+  const cinRegex = /^[A-Z][0-9]{5}[A-Z]{2}[0-9]{4}[A-Z]{3}[0-9]{6}$/;
+  return cinRegex.test(cin);
+}
+
+function isValidOrgRegId(id) {
+  return typeof id === "string" && id.length >= 5;
+}
+
+
 // REGISTER
 // Expect: { fullName, email, phoneNumber, password, role, organizationName, companyName, aadhaarToken, aadhaarNumber(optional) }
 router.post("/register", async (req, res) => {
@@ -60,40 +75,73 @@ router.post("/register", async (req, res) => {
     let companyId = null;
 
     // ---------------- TENDER OFFICER ----------------
-    // ---------------- TENDER OFFICER ----------------
-    if (role === "TENDER_OFFICER") {
-      if (!organizationName) return res.status(400).json({ message: "Organization name required" });
+if (role === "TENDER_OFFICER") {
 
-      const org = await Organization.create({
-        name: organizationName,
-        organizationType: req.body.organizationType || "Government", // new field
-        registrationId: req.body.registrationId || "",              // new field
-        officialEmail: email,
-        officialPhone: phoneNumber,
-        emailVerified: true,
-        phoneVerified: true,
-      });
+  if (!organizationName) {
+    return res.status(400).json({ message: "Organization name required" });
+  }
 
-      organizationId = org._id;
-    }
+  const { organizationType, registrationId } = req.body;
+
+  if (!isValidOrgRegId(registrationId)) {
+    return res.status(400).json({
+      message: "Invalid organization registration ID"
+    });
+  }
+
+  const org = await Organization.create({
+    name: organizationName,
+    organizationType: organizationType || "Government",
+    registrationId,
+
+    officialEmail: email,
+    officialPhone: phoneNumber,
+
+    emailVerified: true,
+    phoneVerified: true,
+
+    // college-project authentication
+    isVerified: true
+  });
+
+  organizationId = org._id;
+}
 
     // ---------------- VENDOR ----------------
-    if (role === "VENDOR") {
-      if (!companyName) return res.status(400).json({ message: "Company name required" });
+if (role === "VENDOR") {
+  if (!companyName) {
+    return res.status(400).json({ message: "Company name required" });
+  }
 
-      const company = await Company.create({
-        name: companyName,
-        companyType: req.body.companyType || "Private Limited", // new field
-        gstNumber: req.body.gstNumber || "PENDING",            // new field
-        cinNumber: req.body.cinNumber || "",                   // new field
-        officialEmail: email,
-        officialPhone: phoneNumber,
-        emailVerified: true,
-        phoneVerified: true,
-      });
+  const { gstNumber, cinNumber, companyType } = req.body;
 
-      companyId = company._id;
-    }
+  if (!gstNumber || !isValidGST(gstNumber)) {
+    return res.status(400).json({ message: "Invalid GST number format" });
+  }
+
+  if (cinNumber && !isValidCIN(cinNumber)) {
+    return res.status(400).json({ message: "Invalid CIN number format" });
+  }
+
+  const company = await Company.create({
+    name: companyName,
+    companyType: companyType || "Private Limited",
+    gstNumber,
+    cinNumber,
+
+    officialEmail: email,
+    officialPhone: phoneNumber,
+
+    emailVerified: true,
+    phoneVerified: true,
+
+    // college-project authentication
+    isVerified: true
+  });
+
+  companyId = company._id;
+}
+
 
 
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
@@ -132,7 +180,6 @@ router.post("/register", async (req, res) => {
 });
 
 
-// LOGIN stays the same (no changes needed)
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
