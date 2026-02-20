@@ -207,10 +207,13 @@ function AuthForm({ type = "login", onSubmit }) {
   // ---------------- Form Submit ----------------
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!isEntityValid()) {
-      alert(role === "TENDER_OFFICER" ? "Organization name required" : "Company name required");
-      return;
-    }
+    if (mode === "register" && !isEntityValid()) {
+    alert(role === "TENDER_OFFICER"
+      ? "Organization name and Registration ID required"
+      : "Company name and GST number required"
+    );
+    return;
+  }
 
     if (mode === "register") {
       if (formData.password !== formData.confirmPassword) {
